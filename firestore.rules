@@ -1,0 +1,151 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
+    }
+
+    function isManager() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'MANAGER';
+    }
+
+    function isApprover() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'APPROVER';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'displayName', 'role']) &&
+             data.email is string && data.email.size() <= 100 &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.role in ['ADMIN', 'MANAGER', 'APPROVER', 'USER'] &&
+             (data.keys().hasAny(['projectAuth']) ? (data.projectAuth is list) : true) &&
+             (data.keys().hasAny(['photoURL']) ? (data.photoURL is string) : true) &&
+             (data.keys().hasAny(['signatureURL']) ? (data.signatureURL is string) : true) &&
+             (data.keys().hasAny(['phoneNumber']) ? (data.phoneNumber is string) : true) &&
+             (data.keys().hasAny(['uid']) ? (data.uid is string) : true);
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isManager()) && isValidUser(incoming());
+      allow update: if isSignedIn() && (
+        isAdmin() || isManager() ||
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'signatureURL', 'email']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['name', 'description', 'totalBudget', 'allocatedBudget', 'managerId']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.description is string && data.description.size() <= 500 &&
+             data.totalBudget is number &&
+             data.allocatedBudget is number &&
+             data.managerId is string && data.managerId.size() <= 128;
+    }
+
+    match /projects/{projectId} {
+      allow get, list: if isSignedIn();
+      allow create: if (isAdmin() || isManager()) && isValidProject(incoming());
+      allow update: if (isAdmin() || isManager()) && isValidProject(incoming());
+      allow delete: if (isAdmin() || isManager());
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll(['projectId', 'name', 'initialBudget', 'spentBudget']) &&
+             data.projectId is string && data.projectId.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.initialBudget is number &&
+             data.spentBudget is number &&
+             (data.keys().hasAny(['responsiblePersonId']) ? data.responsiblePersonId is string : true) &&
+             (data.keys().hasAny(['responsiblePersonName']) ? data.responsiblePersonName is string : true);
+    }
+
+    match /activities/{activityId} {
+      allow get, list: if isSignedIn();
+      allow create: if (isAdmin() || isManager()) && isValidActivity(incoming());
+      allow update: if isSignedIn(); // Allow users to refund budget
+      allow delete: if (isAdmin() || isManager());
+    }
+
+    function isValidRequest(data) {
+      return data.keys().hasAll(['userId', 'projectId', 'activityId', 'amount', 'quarter', 'reason', 'status', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.projectId is string && data.projectId.size() <= 128 &&
+             data.activityId is string && data.activityId.size() <= 128 &&
+             data.amount is number && data.amount > 0 &&
+             data.quarter in ['Q1', 'Q2', 'Q3', 'Q4'] &&
+             data.reason is string && data.reason.size() <= 1000 &&
+             data.status in ['PENDING', 'APPROVED', 'REJECTED', 'CLEARED'] &&
+             data.createdAt is number &&
+             data.updatedAt is number &&
+             (data.keys().hasAny(['userName']) ? data.userName is string : true) &&
+             (data.keys().hasAny(['userEmail']) ? data.userEmail is string : true) &&
+             (data.keys().hasAny(['projectName']) ? data.projectName is string : true) &&
+             (data.keys().hasAny(['activityName']) ? data.activityName is string : true) &&
+             (data.keys().hasAny(['responsiblePerson']) ? data.responsiblePerson is string : true) &&
+             (data.keys().hasAny(['attachmentUrl']) ? data.attachmentUrl is string : true) &&
+             (data.keys().hasAny(['remark']) ? data.remark is string : true) &&
+             (data.keys().hasAny(['approverId']) ? data.approverId is string : true) &&
+             (data.keys().hasAny(['approverName']) ? data.approverName is string : true) &&
+             (data.keys().hasAny(['history']) ? data.history is list : true) &&
+             (data.keys().hasAny(['actualSpent']) ? data.actualSpent is number : true) &&
+             (data.keys().hasAny(['actualSpentMonthly']) ? data.actualSpentMonthly is map : true);
+    }
+
+    match /requests/{requestId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidRequest(incoming()) && incoming().status == 'PENDING';
+      allow update: if isSignedIn() && (
+        isAdmin() || isManager() ||
+        (request.auth.uid == existing().userId && (existing().status == 'PENDING' || existing().status == 'APPROVED') && isValidRequest(incoming())) ||
+        (isApprover() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'remark', 'updatedAt', 'approverId', 'approverName', 'history']))
+      );
+      allow delete: if isAdmin() || isManager() || (request.auth.uid == existing().userId && existing().status != 'CLEARED');
+    }
+
+    function isValidAlert(data) {
+      return data.keys().hasAll(['type', 'message', 'timestamp', 'userId']) &&
+             data.type in ['DUPLICATE', 'STATUS_UPDATE', 'INFO'] &&
+             data.message is string && data.message.size() <= 500 &&
+             data.timestamp is number &&
+             data.userId is string && data.userId.size() <= 128 &&
+             (data.keys().hasAny(['relatedRequestId']) ? data.relatedRequestId is string : true);
+    }
+
+    match /alerts/{alertId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidAlert(incoming());
+      allow update: if isAdmin() || isManager();
+      allow delete: if isAdmin() || isManager() || (isSignedIn() && existing().userId == request.auth.uid);
+    }
+
+    match /settings/{settingId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

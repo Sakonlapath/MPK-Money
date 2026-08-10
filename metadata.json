@@ -1,0 +1,6 @@
+{
+  "name": "Bento Budget",
+  "description": "Enterprise budget management suite with role-based approvals and real-time tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

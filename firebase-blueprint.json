@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with roles and permissions.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 100 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["ADMIN", "APPROVER", "USER"] },
+        "projectAuth": { "type": "array", "items": { "type": "string" } },
+        "photoURL": { "type": "string" }
+      },
+      "required": ["email", "displayName", "role"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Main budget project.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "totalBudget": { "type": "number" },
+        "allocatedBudget": { "type": "number" },
+        "managerId": { "type": "string" }
+      },
+      "required": ["name", "description", "totalBudget", "allocatedBudget", "managerId"]
+    },
+    "Activity": {
+      "title": "SubActivity",
+      "description": "Sub-activity within a project.",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 200 },
+        "initialBudget": { "type": "number" },
+        "spentBudget": { "type": "number" },
+        "responsiblePersonId": { "type": "string" },
+        "responsiblePersonName": { "type": "string" }
+      },
+      "required": ["projectId", "name", "initialBudget", "spentBudget"]
+    },
+    "Request": {
+      "title": "BudgetRequest",
+      "description": "Request for budget allocation.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "projectId": { "type": "string" },
+        "projectName": { "type": "string" },
+        "activityId": { "type": "string" },
+        "activityName": { "type": "string" },
+        "amount": { "type": "number" },
+        "quarter": { "type": "string", "enum": ["Q1", "Q2", "Q3", "Q4"] },
+        "responsiblePerson": { "type": "string" },
+        "reason": { "type": "string", "maxLength": 1000 },
+        "attachmentUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "remark": { "type": "string", "maxLength": 500 },
+        "approverId": { "type": "string" }
+      },
+      "required": ["userId", "projectId", "activityId", "amount", "quarter", "reason", "status", "createdAt", "updatedAt"]
+    },
+    "Alert": {
+      "title": "SystemAlert",
+      "description": "System notification for a user.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["DUPLICATE", "STATUS_UPDATE", "INFO"] },
+        "message": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "relatedRequestId": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["type", "message", "timestamp", "userId"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles."
+    },
+    "projects": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Projects list."
+    },
+    "activities": {
+      "schema": { "$ref": "#/entities/Activity" },
+      "description": "Sub-activities list."
+    },
+    "requests": {
+      "schema": { "$ref": "#/entities/Request" },
+      "description": "Budget requests."
+    },
+    "alerts": {
+      "schema": { "$ref": "#/entities/Alert" },
+      "description": "User notifications."
+    }
+  }
+}
