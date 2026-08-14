@@ -161,8 +161,8 @@ export default function Layout({ children, user, activeTab, onTabChange, onLogou
   const SidebarContent = () => (
     <div className="flex flex-col h-full py-6 px-4">
       <div className="flex items-center gap-3 mb-10 px-2">
-        <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-[#1e3a8a] shadow-lg shadow-emerald-500/20 shrink-0">
-          <LayoutDashboard size={24} />
+        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-lg shadow-black/20 shrink-0 overflow-hidden p-0.5">
+          <img src="/school-logo.png" alt="School Logo" className="w-full h-full object-contain rounded-full" />
         </div>
         <div className="min-w-0">
           <h1 className="text-xl font-black text-white tracking-tighter leading-none truncate">ระบบบริหารงาน<br/><span className="text-emerald-400">แผนงานและงบประมาณ</span></h1>

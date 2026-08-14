@@ -143,8 +143,8 @@ export default function Login() {
         className="w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden"
       >
         <header className="px-10 pt-12 pb-8 text-center bg-slate-50 border-b border-slate-100">
-          <div className="w-16 h-16 bg-[#1e3a8a] rounded-2xl flex items-center justify-center text-emerald-400 mx-auto mb-6 shadow-xl">
-            <LayoutDashboard size={32} />
+          <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center bg-white rounded-full shadow-lg border border-slate-100 p-1">
+            <img src="/school-logo.png" alt="School Logo" className="w-full h-full object-contain rounded-full" />
           </div>
           <h1 className="text-4xl font-black text-[#1e3a8a] tracking-tighter leading-none">ระบบบริหารงาน<br/><span className="text-emerald-500">แผนงานและงบประมาณ</span></h1>
           <p className="text-[10px] text-slate-400 mt-4 tracking-[0.2em] font-black uppercase">Enterprise Access Control</p>
