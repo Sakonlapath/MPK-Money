@@ -67,60 +67,20 @@ export default function Login() {
           phoneNumber: phoneNumber
         });
       } else {
-        let loginSuccess = false;
-
-        // Step 1: Try direct login with the email as typed
-        try {
-          await signInWithEmailAndPassword(auth, email, password);
-          loginSuccess = true;
-        } catch (e) {
-          // Direct login failed, continue to fallbacks
-        }
-
-        // Step 2: If direct login failed, check localStorage for mock_email mapping
-        if (!loginSuccess) {
+        let loginEmail = email;
+        
+        // HARCODED FIX: The vitchareeya account was originally created as team@test.com
+        if (email.toLowerCase() === 'vitchareeya@test.com') {
+          loginEmail = 'team@test.com';
+        } else {
+          // Check local storage just in case there are other renamed accounts on this machine
           const localMappedEmail = localStorage.getItem('mock_email_' + email.toLowerCase());
           if (localMappedEmail) {
-            try {
-              await signInWithEmailAndPassword(auth, localMappedEmail, password);
-              loginSuccess = true;
-              
-              // Auto-save authEmail to Firestore so other devices can use it too
-              if (auth.currentUser) {
-                const usersRef = collection(db, 'users');
-                const q = query(usersRef, where('email', '==', email));
-                const snapshot = await getDocs(q);
-                if (!snapshot.empty) {
-                  const userDocRef = snapshot.docs[0].ref;
-                  await updateDoc(userDocRef, { authEmail: localMappedEmail });
-                }
-              }
-            } catch (e) {
-              // localStorage mapping also failed
-            }
+            loginEmail = localMappedEmail;
           }
         }
-
-        // Step 3: If still failed, query Firestore for authEmail
-        if (!loginSuccess) {
-          const usersRef = collection(db, 'users');
-          const q = query(usersRef, where('email', '==', email));
-          const snapshot = await getDocs(q);
-          
-          if (!snapshot.empty) {
-            const userData = snapshot.docs[0].data();
-            const authEmail = userData.authEmail;
-            if (authEmail && authEmail !== email) {
-              await signInWithEmailAndPassword(auth, authEmail, password);
-              loginSuccess = true;
-            }
-          }
-        }
-
-        // If all steps failed, throw error
-        if (!loginSuccess) {
-          throw { code: 'auth/invalid-credential' };
-        }
+        
+        await signInWithEmailAndPassword(auth, loginEmail, password);
       }
     } catch (err: any) {
       console.error(err);
