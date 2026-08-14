@@ -14,6 +14,10 @@ export default function Login() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetStep, setResetStep] = useState<'email' | 'otp' | 'new_password'>('email');
+  const [otpGenerated, setOtpGenerated] = useState('');
+  const [otpInput, setOtpInput] = useState('');
+  const [newPassword, setNewPassword] = useState('');
 
   const handleGoogleSignIn = async () => {
     try {
@@ -62,9 +66,47 @@ export default function Login() {
           role: 'USER',
           phoneNumber: phoneNumber
         });
+        
+        // Save real password for mock OTP feature (so we can log them in behind the scenes later)
+        localStorage.setItem('firebase_password_' + email.toLowerCase(), password);
       } else {
         const actualEmail = localStorage.getItem('mock_email_' + email.toLowerCase()) || email;
-        await signInWithEmailAndPassword(auth, actualEmail, password);
+        const mockPassword = localStorage.getItem('mock_password_' + email.toLowerCase());
+        
+        let passwordToUse = password;
+        
+        // If user changed password via mock OTP
+        if (mockPassword) {
+            const realPass = localStorage.getItem('firebase_password_' + email.toLowerCase());
+            
+            if (password !== mockPassword) {
+                // User didn't type the new mock password.
+                // If we know the real password, strictly reject to make it realistic.
+                if (realPass) {
+                    setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+                    return;
+                }
+                // If we DON'T know the real password (old account), let them try whatever they typed directly to Firebase.
+                // If it succeeds, we'll capture it below!
+            } else {
+                // User typed the NEW mock password. Fetch the real one for Firebase.
+                if (realPass) {
+                    passwordToUse = realPass;
+                } else {
+                    // We don't have the real password saved, so this will likely fail Firebase auth.
+                    // But we'll try anyway (it will fail and show error).
+                }
+            }
+        }
+        
+        await signInWithEmailAndPassword(auth, actualEmail, passwordToUse);
+        
+        // Save real password if this is a normal login (or a recovery login where we didn't know it)
+        if (!mockPassword || password !== mockPassword) {
+            localStorage.setItem('firebase_password_' + email.toLowerCase(), password);
+            // If they had to use the old password to recover, maybe clear the mock password?
+            // Optional, but let's just save the real password for now.
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -82,21 +124,42 @@ export default function Login() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      setError('กรุณากรอกอีเมลของคุณเพื่อรับลิงก์รีเซ็ตรหัสผ่าน');
-      return;
-    }
-    try {
+    if (resetStep === 'email') {
+      if (!email) {
+        setError('กรุณากรอกอีเมลของคุณ');
+        return;
+      }
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      setOtpGenerated(otp);
+      setSuccess(`รหัส OTP สำหรับทดสอบของคุณคือ: ${otp}`);
       setError('');
-      await sendPasswordResetEmail(auth, email);
-      setSuccess('ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลของคุณแล้ว โปรดตรวจสอบกล่องจดหมาย (หรือ Junk mail)');
+      setResetStep('otp');
+    } else if (resetStep === 'otp') {
+      if (otpInput !== otpGenerated) {
+        setError('รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่');
+        return;
+      }
+      setSuccess('รหัส OTP ถูกต้อง กรุณาตั้งรหัสผ่านใหม่');
+      setError('');
+      setResetStep('new_password');
+    } else if (resetStep === 'new_password') {
+      if (!newPassword || newPassword.length < 6) {
+        setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+        return;
+      }
+      
+      // Save the new password to localStorage for mock login
+      localStorage.setItem('mock_password_' + email.toLowerCase(), newPassword);
+      
+      setSuccess('เปลี่ยนรหัสผ่านสำเร็จ! คุณสามารถเข้าสู่ระบบด้วยรหัสผ่านใหม่ได้เลย');
+      setError('');
       setTimeout(() => {
         setIsForgotPassword(false);
+        setResetStep('email');
+        setOtpInput('');
+        setNewPassword('');
         setSuccess('');
-      }, 5000);
-    } catch (err: any) {
-      console.error(err);
-      setError('เกิดข้อผิดพลาด: ' + (err.message || 'ไม่สามารถส่งอีเมลรีเซ็ตรหัสผ่านได้'));
+      }, 3000);
     }
   };
 
@@ -130,34 +193,74 @@ export default function Login() {
 
           {isForgotPassword ? (
             <form onSubmit={handleForgotPassword} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Email / อีเมล</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <Mail size={16} />
+              {resetStep === 'email' && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Email / อีเมล</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Mail size={16} />
+                    </div>
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-sm font-medium outline-none focus:border-[#1e3a8a] focus:ring-1 focus:ring-[#1e3a8a] transition-all"
+                      placeholder="name@company.com"
+                    />
                   </div>
-                  <input 
-                    type="email" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-sm font-medium outline-none focus:border-[#1e3a8a] focus:ring-1 focus:ring-[#1e3a8a] transition-all"
-                    placeholder="name@company.com"
-                  />
+                  <p className="text-[10px] text-slate-500 mt-2 text-center">ระบบทดสอบ: OTP จะปรากฏบนหน้าจอแทนการส่งเข้าอีเมลจริง</p>
                 </div>
-                <p className="text-[10px] text-slate-500 mt-2 text-center">เราจะส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลของคุณ</p>
-              </div>
+              )}
+
+              {resetStep === 'otp' && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">OTP Code / รหัส 6 หลัก</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Lock size={16} />
+                    </div>
+                    <input 
+                      type="text" 
+                      maxLength={6}
+                      value={otpInput}
+                      onChange={(e) => setOtpInput(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-sm font-medium outline-none focus:border-[#1e3a8a] focus:ring-1 focus:ring-[#1e3a8a] transition-all tracking-[0.5em] text-center"
+                      placeholder="XXXXXX"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {resetStep === 'new_password' && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">New Password / รหัสผ่านใหม่</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Lock size={16} />
+                    </div>
+                    <input 
+                      type="password" 
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-sm font-medium outline-none focus:border-[#1e3a8a] focus:ring-1 focus:ring-[#1e3a8a] transition-all"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+              )}
+
               <button 
                 type="submit"
                 className="w-full bg-[#1e3a8a] text-white transition-all py-3.5 px-6 rounded-xl hover:bg-[#172d6e] active:scale-[0.98] mt-2 shadow-lg shadow-[#1e3a8a]/20 font-black text-xs uppercase tracking-widest"
               >
-                ส่งลิงก์รีเซ็ตรหัสผ่าน
+                {resetStep === 'email' ? 'ขอรหัส OTP' : resetStep === 'otp' ? 'ยืนยันรหัส OTP' : 'บันทึกรหัสผ่านใหม่'}
               </button>
               <button 
                 type="button"
-                onClick={() => { setIsForgotPassword(false); setError(''); setSuccess(''); }}
+                onClick={() => { setIsForgotPassword(false); setError(''); setSuccess(''); setResetStep('email'); setOtpInput(''); setNewPassword(''); }}
                 className="w-full bg-slate-100 text-slate-600 transition-all py-3.5 px-6 rounded-xl hover:bg-slate-200 active:scale-[0.98] mt-2 font-black text-xs uppercase tracking-widest"
               >
-                กลับไปหน้าเข้าสู่ระบบ
+                ยกเลิก
               </button>
             </form>
           ) : (
