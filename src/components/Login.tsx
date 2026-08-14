@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { LayoutDashboard, Mail, Lock, LogIn, UserPlus } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 export default function Login() {
   const [error, setError] = useState('');
@@ -61,12 +61,66 @@ export default function Login() {
         await setDoc(doc(db, 'users', userCredential.user.uid), {
           uid: userCredential.user.uid,
           email: userCredential.user.email || email,
+          authEmail: userCredential.user.email || email,
           displayName: displayName,
           role: 'USER',
           phoneNumber: phoneNumber
         });
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        let loginSuccess = false;
+
+        // Step 1: Try direct login with the email as typed
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          loginSuccess = true;
+        } catch (e) {
+          // Direct login failed, continue to fallbacks
+        }
+
+        // Step 2: If direct login failed, check localStorage for mock_email mapping
+        if (!loginSuccess) {
+          const localMappedEmail = localStorage.getItem('mock_email_' + email.toLowerCase());
+          if (localMappedEmail) {
+            try {
+              await signInWithEmailAndPassword(auth, localMappedEmail, password);
+              loginSuccess = true;
+              
+              // Auto-save authEmail to Firestore so other devices can use it too
+              if (auth.currentUser) {
+                const usersRef = collection(db, 'users');
+                const q = query(usersRef, where('email', '==', email));
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                  const userDocRef = snapshot.docs[0].ref;
+                  await updateDoc(userDocRef, { authEmail: localMappedEmail });
+                }
+              }
+            } catch (e) {
+              // localStorage mapping also failed
+            }
+          }
+        }
+
+        // Step 3: If still failed, query Firestore for authEmail
+        if (!loginSuccess) {
+          const usersRef = collection(db, 'users');
+          const q = query(usersRef, where('email', '==', email));
+          const snapshot = await getDocs(q);
+          
+          if (!snapshot.empty) {
+            const userData = snapshot.docs[0].data();
+            const authEmail = userData.authEmail;
+            if (authEmail && authEmail !== email) {
+              await signInWithEmailAndPassword(auth, authEmail, password);
+              loginSuccess = true;
+            }
+          }
+        }
+
+        // If all steps failed, throw error
+        if (!loginSuccess) {
+          throw { code: 'auth/invalid-credential' };
+        }
       }
     } catch (err: any) {
       console.error(err);

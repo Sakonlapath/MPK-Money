@@ -123,6 +123,8 @@ export default function App() {
       }
       if (newEmail) {
         updateData.email = newEmail;
+        // Save the real Firebase Auth email so other devices can use it to login
+        updateData.authEmail = auth.currentUser?.email || '';
       }
       await updateDoc(doc(db, 'users', currentUser.uid), updateData);
       
