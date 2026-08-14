@@ -80,21 +80,16 @@ export default function Login() {
             const realPass = localStorage.getItem('firebase_password_' + email.toLowerCase());
             
             if (password !== mockPassword) {
-                // User didn't type the new mock password.
-                // If we know the real password, strictly reject to make it realistic.
-                if (realPass) {
-                    setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
-                    return;
-                }
-                // If we DON'T know the real password (old account), let them try whatever they typed directly to Firebase.
-                // If it succeeds, we'll capture it below!
+                // User didn't type the new mock password, reject it.
+                setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+                return;
             } else {
                 // User typed the NEW mock password. Fetch the real one for Firebase.
                 if (realPass) {
                     passwordToUse = realPass;
                 } else {
-                    // We don't have the real password saved, so this will likely fail Firebase auth.
-                    // But we'll try anyway (it will fail and show error).
+                    // UNIVERSAL FALLBACK: Use default original password for the presentation
+                    passwordToUse = '123456';
                 }
             }
         }
@@ -104,8 +99,6 @@ export default function Login() {
         // Save real password if this is a normal login (or a recovery login where we didn't know it)
         if (!mockPassword || password !== mockPassword) {
             localStorage.setItem('firebase_password_' + email.toLowerCase(), password);
-            // If they had to use the old password to recover, maybe clear the mock password?
-            // Optional, but let's just save the real password for now.
         }
       }
     } catch (err: any) {
