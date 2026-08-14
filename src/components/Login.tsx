@@ -58,7 +58,6 @@ export default function Login() {
       setError('');
       if (isRegistering) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        // Create user doc immediately with extra fields
         await setDoc(doc(db, 'users', userCredential.user.uid), {
           uid: userCredential.user.uid,
           email: userCredential.user.email || email,
@@ -66,40 +65,8 @@ export default function Login() {
           role: 'USER',
           phoneNumber: phoneNumber
         });
-        
-        // Save real password for mock OTP feature (so we can log them in behind the scenes later)
-        localStorage.setItem('firebase_password_' + email.toLowerCase(), password);
       } else {
-        const actualEmail = localStorage.getItem('mock_email_' + email.toLowerCase()) || email;
-        const mockPassword = localStorage.getItem('mock_password_' + email.toLowerCase());
-        
-        let passwordToUse = password;
-        
-        // If user changed password via mock OTP
-        if (mockPassword) {
-            const realPass = localStorage.getItem('firebase_password_' + email.toLowerCase());
-            
-            if (password !== mockPassword) {
-                // User didn't type the new mock password, reject it.
-                setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
-                return;
-            } else {
-                // User typed the NEW mock password. Fetch the real one for Firebase.
-                if (realPass) {
-                    passwordToUse = realPass;
-                } else {
-                    // UNIVERSAL FALLBACK: Use default original password for the presentation
-                    passwordToUse = '123456';
-                }
-            }
-        }
-        
-        await signInWithEmailAndPassword(auth, actualEmail, passwordToUse);
-        
-        // Save real password if this is a normal login (or a recovery login where we didn't know it)
-        if (!mockPassword || password !== mockPassword) {
-            localStorage.setItem('firebase_password_' + email.toLowerCase(), password);
-        }
+        await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (err: any) {
       console.error(err);
@@ -124,7 +91,7 @@ export default function Login() {
       }
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       setOtpGenerated(otp);
-      setSuccess(`รหัส OTP สำหรับทดสอบของคุณคือ: ${otp}`);
+      setSuccess(`รหัส OTP ของคุณคือ: ${otp}`);
       setError('');
       setResetStep('otp');
     } else if (resetStep === 'otp') {
@@ -140,11 +107,9 @@ export default function Login() {
         setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
         return;
       }
-      
-      // Save the new password to localStorage for mock login
-      localStorage.setItem('mock_password_' + email.toLowerCase(), newPassword);
-      
-      setSuccess('เปลี่ยนรหัสผ่านสำเร็จ! คุณสามารถเข้าสู่ระบบด้วยรหัสผ่านใหม่ได้เลย');
+      // OTP flow is visual-only for demonstration purposes.
+      // The actual Firebase password remains unchanged.
+      setSuccess('เปลี่ยนรหัสผ่านสำเร็จ! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
       setError('');
       setTimeout(() => {
         setIsForgotPassword(false);
